@@ -1,93 +1,616 @@
-@import "tailwindcss";
+/*
+ * Soft Vault: a safe moulded from one continuous sheet of matte plastic. Nothing is drawn with a
+ * border. Everything is the same surface, lit from the top left, either raised out of it or pressed
+ * into it. Two shadow recipes and nothing else.
+ */
 
-/* Placeholder shell. Replaced once a visual direction is chosen. */
 :root {
-  color-scheme: dark;
+  --bg: #e6e9f0;
+  --surface: #edf0f6;
+  --hi: #ffffff;
+  --shade: #c3c9d6;
+  --ink: #2a3040;
+  --muted: #6b7386;
+  --indigo: #4c5fd7;
+  --pos: #2e9e7b;
+  --warn: #b6772f;
+
+  --dx: 8px;
+  --dy: 8px;
+  --bl: 20px;
+
+  --r-lg: 32px;
+  --r-md: 24px;
+  --r-sm: 16px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* `only light` also opts out of Chrome's automatic dark-mode inversion, which would otherwise
+   * invert the whole surface and destroy the lighting the design depends on. */
+  color-scheme: only light;
 }
+
+/* The two recipes. Raised sits on the surface; pressed is cut into it. */
+.raised {
+  box-shadow:
+    var(--dx) var(--dy) var(--bl) var(--shade),
+    calc(-1 * var(--dx)) calc(-1 * var(--dy)) var(--bl) var(--hi);
+}
+.pressed {
+  box-shadow:
+    inset var(--dx) var(--dy) var(--bl) var(--shade),
+    inset calc(-1 * var(--dx)) calc(-1 * var(--dy)) var(--bl) var(--hi);
+}
+.raised-sm {
+  box-shadow:
+    4px 4px 10px var(--shade),
+    -4px -4px 10px var(--hi);
+}
+.pressed-sm {
+  box-shadow:
+    inset 4px 4px 10px var(--shade),
+    inset -4px -4px 10px var(--hi);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
   margin: 0;
-  background: #0b0b0c;
-  color: #e8e6e3;
-  font: 15px/1.55 ui-sans-serif, system-ui, sans-serif;
+  padding: 0;
 }
-.wrap {
-  max-width: 46rem;
-  margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
-section {
-  border-top: 1px solid #232326;
-  padding: 1.5rem 0;
-}
-h1 {
-  margin: 0;
-  font-size: 2rem;
-  letter-spacing: -0.02em;
-}
-h2 {
-  margin: 0 0 0.75rem;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #8b8b90;
-}
-dl {
-  display: grid;
-  grid-template-columns: 12rem 1fr;
-  gap: 0.35rem 1rem;
-  margin: 0;
-}
-dt {
-  color: #8b8b90;
-}
-dd {
-  margin: 0;
-}
-.figure {
-  font-size: 2rem;
-  font-variant-numeric: tabular-nums;
-  margin: 0 0 0.75rem;
-}
-.masked {
-  font-family: ui-monospace, monospace;
-  font-size: 1.1rem;
-  color: #6f6f75;
-  word-break: break-all;
-}
-button {
-  font: inherit;
-  padding: 0.5rem 0.9rem;
-  margin: 0.25rem 0.5rem 0.25rem 0;
-  background: #1a1a1d;
-  color: inherit;
-  border: 1px solid #33333a;
-  border-radius: 3px;
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-input {
-  font: inherit;
-  padding: 0.5rem 0.7rem;
-  background: #131316;
-  color: inherit;
-  border: 1px solid #33333a;
-  border-radius: 3px;
-  width: 10rem;
-}
-.error {
-  color: #e2767a;
-}
-.status {
-  color: #9a9aa2;
-}
-footer {
-  padding-top: 1.5rem;
-  color: #6f6f75;
-  font-size: 0.85rem;
-}
+
 a {
-  color: #b9b9c2;
+  color: var(--indigo);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------- layout
+ *
+ * The one rule that matters: a panel is only ever as tall as its own content.
+ * Columns never stretch to match a neighbour, so a short panel next to a long one leaves the page
+ * short rather than leaving a tall empty box.
+ */
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 28px 80px;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 24px 14px 56px;
+  }
+  .panel {
+    padding: 20px;
+    border-radius: var(--r-md);
+  }
+  .quick {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .row {
+    flex-wrap: wrap;
+  }
+}
+
+.cols {
+  display: grid;
+  gap: 28px;
+  align-items: start; /* never stretch */
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+}
+
+.cols > * {
+  min-width: 0;
+  align-self: start;
+}
+
+.panel {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 28px;
+  height: auto;
+}
+
+.panel + .panel {
+  margin-top: 28px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.label::after {
+  content: "";
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--shade), transparent);
+}
+
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 13px;
+}
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-ligatures: none;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 20px;
+  margin-bottom: 34px;
+}
+
+.mark {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.top .spacer {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------- hero */
+
+.hero {
+  display: grid;
+  gap: 28px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 820px) {
+  .hero {
+    /* minmax(0, …) so the dial column can compress rather than force a wider page. */
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  }
+}
+
+.dial {
+  position: relative;
+  width: min(212px, 100%);
+  aspect-ratio: 1;
+  height: auto;
+  border-radius: 50%;
+  background: var(--surface);
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+.dial .inner {
+  width: 156px;
+  height: 156px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0 14px;
+}
+.dial .amount {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.dial .unit {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.statgrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  align-items: start;
+}
+
+.stat {
+  padding: 18px 20px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.stat .k {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stat .v {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+}
+.stat .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------- the sealed balance */
+
+.well {
+  position: relative;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 30px 24px;
+  text-align: center;
+  min-height: 132px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.cipher {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 19px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  filter: blur(5px);
+  user-select: none;
+  transition: filter 520ms var(--ease);
+  word-break: break-all;
+  line-height: 1.7;
+}
+
+.figure {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.figure .unit {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.btn {
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--r-sm);
+  padding: 13px 20px;
+  cursor: pointer;
+  transition:
+    transform 220ms var(--ease),
+    box-shadow 220ms var(--ease),
+    color 220ms var(--ease);
+}
+.btn:hover:not(:disabled) {
+  color: var(--indigo);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 4px 4px 10px var(--shade),
+    inset -4px -4px 10px var(--hi);
+}
+.btn:disabled {
+  color: var(--muted);
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 4px;
+}
+.btn.primary {
+  color: var(--indigo);
+}
+.btn.wide {
+  width: 100%;
+}
+.btn.lg {
+  padding: 17px 24px;
+  font-size: 17px;
+  border-radius: var(--r-md);
+}
+
+.btnrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+.btnrow > .btn {
+  flex: 1 1 auto;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 7px;
+  border-radius: 999px;
+  background: var(--surface);
+  margin-bottom: 22px;
+}
+.segmented button {
+  font: inherit;
+  font-weight: 700;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 12px 10px;
+  cursor: pointer;
+  transition:
+    box-shadow 240ms var(--ease),
+    color 240ms var(--ease);
+}
+.segmented button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow:
+    4px 4px 10px var(--shade),
+    -4px -4px 10px var(--hi);
+}
+.segmented button:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+}
+
+.amountwell {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 18px 22px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.amountwell:focus-within {
+  outline: 2px solid var(--indigo);
+  outline-offset: 4px;
+  border-radius: var(--r-md);
+}
+.amountwell input {
+  font: inherit;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  width: 100%;
+  min-width: 0;
+}
+.amountwell .unit {
+  font-weight: 700;
+  color: var(--muted);
+  flex: none;
+}
+
+.quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+.quick .btn {
+  padding: 10px 4px;
+  font-size: 13px;
+  border-radius: 14px;
+}
+
+/* An outcome never replaces the controls that produced it. It appears above them, and the form
+ * stays exactly where it was, so a panel cannot collapse and leave an empty box behind. */
+.notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 15px 18px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+.notice .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 7px;
+  background: var(--muted);
+}
+.notice.ok .dot {
+  background: var(--pos);
+}
+.notice.busy .dot {
+  background: var(--indigo);
+  animation: pulse 1.1s var(--ease) infinite;
+}
+.notice.bad .dot {
+  background: var(--warn);
+}
+.notice .body {
+  min-width: 0;
+}
+.notice strong {
+  display: block;
+  font-weight: 800;
+}
+.notice p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------------------------------------------------------------- rows and meters */
+
+.rows {
+  margin-top: 22px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 13px 2px;
+}
+.row + .row {
+  border-top: 1px solid rgba(0, 0, 0, 0.045);
+}
+.row .k {
+  color: var(--muted);
+}
+.row .v {
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.segbar {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 0;
+}
+.seg {
+  flex: 1;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--surface);
+  transition: box-shadow 420ms var(--ease);
+  box-shadow:
+    inset 3px 3px 7px var(--shade),
+    inset -3px -3px 7px var(--hi);
+}
+.seg.done {
+  box-shadow:
+    3px 3px 8px var(--shade),
+    -3px -3px 8px var(--hi);
+}
+
+.meter {
+  height: 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.meter .fill {
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  border-radius: 999px;
+  background: var(--indigo);
+  transition: width 500ms var(--ease);
+}
+
+.note {
+  margin-top: 20px;
+  padding: 18px 20px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 14px;
+}
+.note strong {
+  display: block;
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+.note p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pos);
+  flex: none;
+}
+
+.foot {
+  margin-top: 44px;
+  padding: 22px 26px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

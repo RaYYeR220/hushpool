@@ -124,17 +124,20 @@ export function usePoolActions() {
   const encrypt = useEncrypt();
   const { writeContractAsync } = useWriteContract();
   const [status, setStatus] = useState<string>();
+  const [lastDone, setLastDone] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  const run = useCallback(async (label: string, fn: () => Promise<unknown>) => {
+  const run = useCallback(async (label: string, done: string, fn: () => Promise<unknown>) => {
     setBusy(true);
+    setLastDone(undefined);
     setStatus(label);
     try {
       await fn();
       setStatus(undefined);
+      setLastDone(done);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-      throw error;
+      // Wallet errors arrive as long multi-line dumps; the first line is the part worth showing.
+      setStatus(error instanceof Error ? error.message.split(/\r?\n/)[0] : String(error));
     } finally {
       setBusy(false);
     }
@@ -143,7 +146,7 @@ export function usePoolActions() {
   /** Mint the public test token. The mock's mint is open to anyone and repeatable. */
   const faucet = useCallback(
     (amount: bigint) =>
-      run("Minting test USDT", async () => {
+      run("Minting test USDT", "Minted", async () => {
         if (!address) throw new Error("connect a wallet first");
         await writeContractAsync({
           address: sepolia.underlying,
@@ -164,7 +167,7 @@ export function usePoolActions() {
    */
   const deposit = useCallback(
     (amount: bigint) =>
-      run("Depositing", async () => {
+      run("Depositing", "Deposited", async () => {
         if (!address) throw new Error("connect a wallet first");
 
         // The USDT mock keeps the original's quirk: a non-zero allowance must be cleared first.
@@ -206,7 +209,7 @@ export function usePoolActions() {
 
   const withdraw = useCallback(
     (amount: bigint) =>
-      run("Withdrawing", async () => {
+      run("Withdrawing", "Withdrawn", async () => {
         if (!address) throw new Error("connect a wallet first");
         const enc = await encrypt.mutateAsync({
           values: [{ value: amount, type: "euint64" }],
@@ -226,7 +229,7 @@ export function usePoolActions() {
 
   const sponsor = useCallback(
     (amount: bigint) =>
-      run("Adding to the prize", async () => {
+      run("Adding to the prize", "Prize topped up", async () => {
         await writeContractAsync({
           address: sepolia.underlying,
           abi: erc20Abi,
@@ -250,7 +253,7 @@ export function usePoolActions() {
     [run, writeContractAsync],
   );
 
-  return { faucet, deposit, withdraw, sponsor, busy, status };
+  return { faucet, deposit, withdraw, sponsor, busy, status, lastDone };
 }
 
 /** Both draw entry points are permissionless, so the UI exposes them to anyone. */
