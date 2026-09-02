@@ -30,8 +30,9 @@ const WRAPPER_ABI = [
 /// Deterministic demo signers, so a rerun tops up the same accounts instead of stranding funds.
 function demoWallets(count: number) {
   const base = process.env.DEMO_MNEMONIC ?? "hushpool demo participants seed phrase for public testnet only";
-  return Array.from({ length: count }, (_, i) =>
-    new ethers.Wallet(ethers.id(`${base}/${i}`).slice(0, 66), ethers.provider),
+  return Array.from(
+    { length: count },
+    (_, i) => new ethers.Wallet(ethers.id(`${base}/${i}`).slice(0, 66), ethers.provider),
   );
 }
 

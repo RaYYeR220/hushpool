@@ -3,8 +3,10 @@
 import { useDecryptValues, useEncrypt, useGrantPermit, useHasPermit } from "@zama-fhe/react-sdk";
 import { useCallback, useMemo, useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { readContract, waitForTransactionReceipt } from "wagmi/actions";
 
 import { erc20Abi, exitQueueAbi, poolAbi, sepolia, wrapperAbi } from "~/lib/contracts";
+import { wagmiConfig } from "~/lib/wagmi";
 
 const ZERO_HANDLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -91,18 +93,36 @@ export function useMyBalance() {
     [handle, isEmpty],
   );
 
-  const { mutate: grantPermit, isPending: authorising } = useGrantPermit();
-  const { data: permitted } = useHasPermit({ contractAddresses: [sepolia.pool] });
-  const decrypt = useDecryptValues(inputs, { enabled: revealRequested && Boolean(permitted) && !isEmpty });
+  const { mutateAsync: grantPermit, isPending: authorising } = useGrantPermit();
+  const { data: permitted, refetch: refetchPermit } = useHasPermit({ contractAddresses: [sepolia.pool] });
+
+  // Granting a permit does not invalidate the query that reports whether one exists, so waiting on
+  // `permitted` to flip leaves the decryption disabled forever. Drive it from the grant instead.
+  const [authorised, setAuthorised] = useState(false);
+  const [failure, setFailure] = useState<string>();
+
+  const decrypt = useDecryptValues(inputs, { enabled: revealRequested && authorised && !isEmpty });
 
   const value = isEmpty ? 0n : ((handle && decrypt.data?.[handle]) as bigint | undefined);
 
-  const reveal = useCallback(() => {
+  const reveal = useCallback(async () => {
+    setFailure(undefined);
     setRevealRequested(true);
-    if (!permitted) grantPermit([sepolia.pool]);
-  }, [permitted, grantPermit]);
+    try {
+      if (!permitted && !authorised) {
+        await grantPermit([sepolia.pool]);
+        await refetchPermit();
+      }
+      setAuthorised(true);
+    } catch (error) {
+      setRevealRequested(false);
+      setFailure(error instanceof Error ? error.message.split(/\r?\n/)[0] : String(error));
+    }
+  }, [permitted, authorised, grantPermit, refetchPermit]);
 
   const hide = useCallback(() => setRevealRequested(false), []);
+
+  const raw = failure ?? decrypt.error?.message;
 
   return {
     isConnected,
@@ -111,11 +131,24 @@ export function useMyBalance() {
     value,
     revealed: value !== undefined && revealRequested,
     working: authorising || decrypt.isFetching,
-    error: decrypt.error?.message,
+    error: raw ? describeDecryptFailure(raw) : undefined,
     reveal,
     hide,
     refetch: handleQuery.refetch,
   };
+}
+
+/**
+ * Reading an encrypted balance needs the protocol's threshold key-management service to return
+ * enough valid shares. When it cannot, the failure is upstream and no amount of retrying by the
+ * user will help, so say that rather than implying the pool is broken.
+ */
+function describeDecryptFailure(message: string): string {
+  if (/failed to decrypt|reconstruct|decoding failure|kms/i.test(message)) {
+    return "The network's decryption service did not return a usable result. Your balance is safe and unchanged — this step runs off-chain, on Zama's key-management service, and can be retried later.";
+  }
+  if (/rejected|denied|user refused/i.test(message)) return "Signature rejected.";
+  return message;
 }
 
 /** The public token balance in the connected wallet, which is what a deposit is drawn from. */
@@ -156,19 +189,60 @@ export function usePoolActions() {
     }
   }, []);
 
+  /**
+   * Send a transaction and wait for it to be mined.
+   *
+   * `writeContractAsync` resolves once a transaction is *sent*, not once it lands. Firing a
+   * dependent call straight after means the wallet estimates it against pre-transaction state, and
+   * anything that depends on the first one reverts before it is even submitted.
+   */
+  const send = useCallback(
+    async (request: Parameters<typeof writeContractAsync>[0]) => {
+      const hash = await writeContractAsync(request);
+      await waitForTransactionReceipt(wagmiConfig, { hash });
+      return hash;
+    },
+    [writeContractAsync],
+  );
+
+  /**
+   * Set an ERC-20 allowance, resetting it first only when it has to be.
+   *
+   * The USDT mock keeps the original's quirk: raising a non-zero allowance reverts. Reading the
+   * current value first avoids a pointless transaction in the common case.
+   */
+  const approve = useCallback(
+    async (spender: `0x${string}`, amount: bigint) => {
+      if (!address) throw new Error("connect a wallet first");
+      const current = (await readContract(wagmiConfig, {
+        address: sepolia.underlying,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [address, spender],
+      })) as bigint;
+
+      if (current >= amount) return;
+      if (current > 0n) {
+        await send({ address: sepolia.underlying, abi: erc20Abi, functionName: "approve", args: [spender, 0n] });
+      }
+      await send({ address: sepolia.underlying, abi: erc20Abi, functionName: "approve", args: [spender, amount] });
+    },
+    [address, send],
+  );
+
   /** Mint the public test token. The mock's mint is open to anyone and repeatable. */
   const faucet = useCallback(
     (amount: bigint) =>
       run("Minting test USDT", "Minted", async () => {
         if (!address) throw new Error("connect a wallet first");
-        await writeContractAsync({
+        await send({
           address: sepolia.underlying,
           abi: erc20Abi,
           functionName: "mint",
           args: [address, amount],
         });
       }),
-    [address, run, writeContractAsync],
+    [address, run, send],
   );
 
   /**
@@ -183,20 +257,8 @@ export function usePoolActions() {
       run("Depositing", "Deposited", async () => {
         if (!address) throw new Error("connect a wallet first");
 
-        // The USDT mock keeps the original's quirk: a non-zero allowance must be cleared first.
-        await writeContractAsync({
-          address: sepolia.underlying,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [sepolia.asset, 0n],
-        });
-        await writeContractAsync({
-          address: sepolia.underlying,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [sepolia.asset, amount],
-        });
-        await writeContractAsync({
+        await approve(sepolia.asset, amount);
+        await send({
           address: sepolia.asset,
           abi: wrapperAbi,
           functionName: "wrap",
@@ -209,7 +271,7 @@ export function usePoolActions() {
           userAddress: address,
         });
 
-        await writeContractAsync({
+        await send({
           address: sepolia.asset,
           abi: wrapperAbi,
           functionName: "confidentialTransferAndCall",
@@ -217,7 +279,7 @@ export function usePoolActions() {
           gas: FHE_GAS,
         });
       }),
-    [address, encrypt, run, writeContractAsync],
+    [address, approve, encrypt, run, send],
   );
 
   const withdraw = useCallback(
@@ -229,7 +291,7 @@ export function usePoolActions() {
           contractAddress: sepolia.pool,
           userAddress: address,
         });
-        await writeContractAsync({
+        await send({
           address: sepolia.pool,
           abi: poolAbi,
           functionName: "withdraw",
@@ -237,25 +299,14 @@ export function usePoolActions() {
           gas: FHE_GAS,
         });
       }),
-    [address, encrypt, run, writeContractAsync],
+    [address, encrypt, run, send],
   );
 
   const sponsor = useCallback(
     (amount: bigint) =>
       run("Adding to the prize", "Prize topped up", async () => {
-        await writeContractAsync({
-          address: sepolia.underlying,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [sepolia.pool, 0n],
-        });
-        await writeContractAsync({
-          address: sepolia.underlying,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [sepolia.pool, amount],
-        });
-        await writeContractAsync({
+        await approve(sepolia.pool, amount);
+        await send({
           address: sepolia.pool,
           abi: poolAbi,
           functionName: "sponsorPrize",
@@ -263,7 +314,7 @@ export function usePoolActions() {
           gas: FHE_GAS,
         });
       }),
-    [run, writeContractAsync],
+    [approve, run, send],
   );
 
   return { faucet, deposit, withdraw, sponsor, busy, status, lastDone };
@@ -274,10 +325,18 @@ export function useDrawActions() {
   const { writeContractAsync } = useWriteContract();
   const [busy, setBusy] = useState(false);
 
+  // Advancing a scan depends on the draw it advances having landed, so both wait for a receipt
+  // rather than resolving the moment the transaction is sent.
   const startDraw = useCallback(async () => {
     setBusy(true);
     try {
-      await writeContractAsync({ address: sepolia.pool, abi: poolAbi, functionName: "startDraw", gas: FHE_GAS });
+      const hash = await writeContractAsync({
+        address: sepolia.pool,
+        abi: poolAbi,
+        functionName: "startDraw",
+        gas: FHE_GAS,
+      });
+      await waitForTransactionReceipt(wagmiConfig, { hash });
     } finally {
       setBusy(false);
     }
@@ -287,13 +346,14 @@ export function useDrawActions() {
     async (batchSize: number) => {
       setBusy(true);
       try {
-        await writeContractAsync({
+        const hash = await writeContractAsync({
           address: sepolia.pool,
           abi: poolAbi,
           functionName: "advanceDraw",
           args: [batchSize],
           gas: FHE_GAS,
         });
+        await waitForTransactionReceipt(wagmiConfig, { hash });
       } finally {
         setBusy(false);
       }

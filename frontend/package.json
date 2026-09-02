@@ -12,6 +12,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.96.2",
     "@zama-fhe/react-sdk": "^3.0.0",
+    "@zama-fhe/relayer-sdk": "^0.4.1",
     "@zama-fhe/sdk": "^3.0.0",
     "next": "~15.2.3",
     "react": "~19.0.0",
