@@ -118,6 +118,19 @@ export function useMyBalance() {
   };
 }
 
+/** The public token balance in the connected wallet, which is what a deposit is drawn from. */
+export function useWalletBalance() {
+  const { address } = useAccount();
+  const query = useReadContract({
+    address: sepolia.underlying,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address) },
+  });
+  return { value: query.data as bigint | undefined, refetch: query.refetch };
+}
+
 /** Deposit, withdraw, and the faucet path a reviewer needs before either. */
 export function usePoolActions() {
   const { address } = useAccount();

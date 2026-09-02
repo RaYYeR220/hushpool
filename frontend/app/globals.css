@@ -500,6 +500,33 @@ a:hover {
   }
 }
 
+/* A horizontal strip of small facts. Used where a vertical column of them would have left a
+ * neighbouring column short and the space beside it dead. */
+.chips {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  margin-top: 22px;
+}
+.chip {
+  padding: 15px 18px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.chip .k {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: block;
+}
+.chip .v {
+  font-weight: 800;
+  margin-top: 3px;
+  display: block;
+}
+
 /* ---------------------------------------------------------------- rows and meters */
 
 .rows {

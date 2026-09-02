@@ -11,6 +11,7 @@ import {
   useMyBalance,
   usePoolActions,
   usePoolStats,
+  useWalletBalance,
 } from "~/hooks/useHushpool";
 import { sepolia } from "~/lib/contracts";
 
@@ -63,6 +64,7 @@ export default function Home() {
   const actions = usePoolActions();
   const draw = useDrawActions();
   const exit = useExitQueue();
+  const wallet = useWalletBalance();
 
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [amount, setAmount] = useState("25");
@@ -207,6 +209,24 @@ export default function Home() {
             </div>
           </div>
 
+          <p className="label" style={{ marginTop: 26 }}>
+            What an observer sees
+          </p>
+          <div className="rows" style={{ marginTop: 0 }}>
+            <div className="row">
+              <span className="k">That you deposited, and when</span>
+              <span className="v">Public</span>
+            </div>
+            <div className="row">
+              <span className="k">How much you hold</span>
+              <span className="v">Sealed</span>
+            </div>
+            <div className="row">
+              <span className="k">Whether you have won</span>
+              <span className="v">Sealed</span>
+            </div>
+          </div>
+
           <div className="note pressed-sm">
             <strong>Your odds exist. Nobody can read them.</strong>
             <p>
@@ -272,6 +292,10 @@ export default function Home() {
 
           <div className="rows">
             <div className="row">
+              <span className="k">In your wallet</span>
+              <span className="v">{fromUnits(wallet.value)} tUSDT public</span>
+            </div>
+            <div className="row">
               <span className="k">Need test funds?</span>
               <span className="v">
                 <button className="btn raised-sm" onClick={() => actions.faucet(units)} disabled={actions.busy}>
@@ -292,8 +316,9 @@ export default function Home() {
           <div className="note pressed-sm">
             <strong>No standing approval is ever granted.</strong>
             <p>
-              The deposit is made on the token itself and delivers the funds in the same call, so the
-              pool never holds permission to move your balance.
+              A deposit is made on the token itself and delivers the funds in the same call, so the
+              pool never holds permission to move your balance. An ERC-7984 operator grant is bounded
+              by time but not by amount, and this pool never asks for one.
             </p>
           </div>
         </section>
@@ -302,109 +327,103 @@ export default function Home() {
       <section className="panel raised" style={{ marginTop: 28 }}>
         <p className="label">The draw</p>
 
-        <div className="cols">
-          <div>
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Participants are scanned in batches of {batchSize}. Each one is written to identically —
-              the winner and the losers cost the same gas and emit the same events.
-            </p>
+        <p className="small muted" style={{ marginTop: 0, maxWidth: "68ch" }}>
+          Participants are scanned in batches of {batchSize}. Each one is written to identically — the
+          winner and the losers cost the same gas and emit the same events.
+        </p>
 
-            <div className="segbar" aria-label={`${scanned} of ${scanTotal} scanned`}>
-              {Array.from({ length: Math.max(scanTotal, 1) }).map((_, index) => (
-                <span key={index} className={`seg${index < scanned ? " done" : ""}`} />
-              ))}
-            </div>
-            <p className="small muted" style={{ marginTop: 10 }}>
-              {stats.scanning
-                ? `${scanned} of ${scanTotal} scanned`
-                : settled
-                  ? `Draw #${stats.drawId?.toString()} settled over ${scanTotal} participants`
-                  : "No draw running"}
-            </p>
+        <div className="segbar" aria-label={`${scanned} of ${scanTotal} scanned`}>
+          {Array.from({ length: Math.max(scanTotal, 1) }).map((_, index) => (
+            <span key={index} className={`seg${index < scanned ? " done" : ""}`} />
+          ))}
+        </div>
+        <p className="small muted" style={{ marginTop: 10 }}>
+          {stats.scanning
+            ? `${scanned} of ${scanTotal} scanned`
+            : settled
+              ? `Draw #${stats.drawId?.toString()} settled over ${scanTotal} participants`
+              : "No draw running"}
+        </p>
 
-            <div className="btnrow">
-              <button
-                className="btn raised-sm primary"
-                onClick={draw.startDraw}
-                disabled={draw.busy || Boolean(stats.scanning)}
-              >
-                Start a draw
-              </button>
-              <button
-                className="btn raised-sm"
-                onClick={() => draw.advanceDraw(batchSize)}
-                disabled={draw.busy || !stats.scanning}
-              >
-                Advance the scan
-              </button>
-            </div>
+        <div className="btnrow">
+          <button
+            className="btn raised-sm primary"
+            onClick={draw.startDraw}
+            disabled={draw.busy || Boolean(stats.scanning)}
+          >
+            Start a draw
+          </button>
+          <button
+            className="btn raised-sm"
+            onClick={() => draw.advanceDraw(batchSize)}
+            disabled={draw.busy || !stats.scanning}
+          >
+            Advance the scan
+          </button>
+        </div>
+
+        <div className="chips">
+          <div className="chip pressed-sm">
+            <span className="k">Randomness</span>
+            <span className="v">On-chain FHE</span>
           </div>
-
-          <div>
-            <div className="note pressed-sm" style={{ marginTop: 0 }}>
-              <strong>{settled ? "Settled. No winner was recorded." : "No winner will be recorded."}</strong>
-              <p>
-                That is not a missing field. The winning index exists only as a ciphertext that is
-                never decrypted, so the chain holds no record of who took the prize. A winner finds
-                out by decrypting their own balance.
-              </p>
-            </div>
-            <div className="rows">
-              <div className="row">
-                <span className="k">Randomness</span>
-                <span className="v">On-chain FHE</span>
-              </div>
-              <div className="row">
-                <span className="k">Who can run it</span>
-                <span className="v">Anyone</span>
-              </div>
-              <div className="row">
-                <span className="k">Refused below</span>
-                <span className="v">{stats.minParticipants ?? "—"} depositors</span>
-              </div>
-            </div>
+          <div className="chip pressed-sm">
+            <span className="k">Who can run it</span>
+            <span className="v">Anyone</span>
           </div>
+          <div className="chip pressed-sm">
+            <span className="k">Refused below</span>
+            <span className="v">{stats.minParticipants ?? "—"} depositors</span>
+          </div>
+        </div>
+
+        <div className="note pressed-sm">
+          <strong>{settled ? "Settled. No winner was recorded." : "No winner will be recorded."}</strong>
+          <p>
+            That is not a missing field. The winning index exists only as a ciphertext that is never
+            decrypted, so the chain holds no record of who took the prize. A winner finds out by
+            decrypting their own balance.
+          </p>
         </div>
       </section>
 
       <section className="panel raised" style={{ marginTop: 28 }}>
         <p className="label">Exit queue</p>
 
-        <div className="cols">
-          <div>
-            <p className="small muted" style={{ marginTop: 0 }}>
-              Leaving for the public token is where a prize pool normally names its winner. Requests
-              gather here and the wrapper is called once, for the batch total.
-            </p>
+        <p className="small muted" style={{ marginTop: 0, maxWidth: "68ch" }}>
+          Leaving for the public token is where a prize pool normally names its winner. Requests
+          gather here and the wrapper is called once, for the batch total.
+        </p>
 
-            <div className="meter pressed-sm">
-              <div className="fill" style={{ width: `${exitPct}%` }} />
-            </div>
-            <p className="small muted" style={{ marginTop: 10 }}>
-              Batch #{exit.batchId?.toString() ?? "—"} · {exitHave} of {exitNeed || "—"} requests needed
-            </p>
-          </div>
+        <div className="meter pressed-sm">
+          <div className="fill" style={{ width: `${exitPct}%` }} />
+        </div>
+        <p className="small muted" style={{ marginTop: 10 }}>
+          Batch #{exit.batchId?.toString() ?? "—"} · {exitHave} of {exitNeed || "—"} requests needed
+        </p>
 
-          <div>
-            <div className="rows" style={{ marginTop: 0 }}>
-              <div className="row">
-                <span className="k">Settles after</span>
-                <span className="v">{exit.minBatchAge ? `${exit.minBatchAge.toString()}s` : "—"}</span>
-              </div>
-              <div className="row">
-                <span className="k">Status</span>
-                <span className="v">{exit.settleable ? "Ready to settle" : "Holding"}</span>
-              </div>
-            </div>
-            <div className="note pressed-sm">
-              <strong>A lone exit is never settled alone.</strong>
-              <p>
-                Claim amounts do become public when claimed — paying an ERC-20 needs a plaintext.
-                Batching removes the link to any particular draw. That limit is documented rather
-                than hidden.
-              </p>
-            </div>
+        <div className="chips">
+          <div className="chip pressed-sm">
+            <span className="k">Settles after</span>
+            <span className="v">{exit.minBatchAge ? `${exit.minBatchAge.toString()}s` : "—"}</span>
           </div>
+          <div className="chip pressed-sm">
+            <span className="k">Status</span>
+            <span className="v">{exit.settleable ? "Ready to settle" : "Holding"}</span>
+          </div>
+          <div className="chip pressed-sm">
+            <span className="k">Calls to the wrapper</span>
+            <span className="v">One, per batch</span>
+          </div>
+        </div>
+
+        <div className="note pressed-sm">
+          <strong>A lone exit is never settled alone.</strong>
+          <p>
+            Claim amounts do become public when claimed — paying an ERC-20 needs a plaintext.
+            Batching removes the link to any particular draw. That limit is documented rather than
+            hidden.
+          </p>
         </div>
       </section>
 
