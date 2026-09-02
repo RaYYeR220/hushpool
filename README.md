@@ -124,6 +124,11 @@ Things that are not in the "wrap an ERC-20" starter and cost real time to get ri
   permanently, with no error at the time of the mistake.
 - **`euint128` for the time integral.** `balance x seconds` overflows 64 bits for realistic
   balances and periods.
+- **Verification needs the network the contract was deployed against.** The Hardhat plugin rewrites
+  `ZamaConfig.sol` with protocol addresses for the target network, so the coprocessor addresses are
+  baked into the bytecode at compile time. Compiling for the local mock and then verifying produces
+  a bytecode mismatch that looks like a compiler-settings problem and is not. Run
+  `npx hardhat compile --force --network sepolia` before verifying.
 
 ## Bounty requirements
 

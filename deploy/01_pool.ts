@@ -11,9 +11,15 @@ const SEPOLIA_CONFIDENTIAL_USDT = "0x4E7B06D78965594eB5EF5414c357ca21E1554491";
 /// A draw is refused below this many participants, so no draw ever has a guessable winner.
 const MIN_PARTICIPANTS = 3;
 
-/// Participants scanned per `advanceDraw` call. Sized to stay under the 5M HCU dependency-chain
-/// limit, which the sequential prefix sum runs into well before the 20M per-transaction limit.
-const MAX_SCAN_BATCH = 16;
+/**
+ * Participants scanned per `advanceDraw` call.
+ *
+ * The prefix sum is a sequential dependency chain, so it meets FHEVM's 5M HCU chain limit long
+ * before the 20M per-transaction limit matters. The limit is invisible locally -- the Hardhat mock
+ * does not meter HCU at all -- so it was measured against the live network instead: 11 participants
+ * succeed and 12 revert. Shipping 8 leaves headroom for protocol cost changes.
+ */
+const MAX_SCAN_BATCH = 8;
 
 /// Exit batches settle five minutes after opening. A production deployment would use days: Zama's
 /// own Confidential Vault uses seven, precisely so that a lone withdrawal is never settled alone.

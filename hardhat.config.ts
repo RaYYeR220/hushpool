@@ -24,10 +24,10 @@ const config: HardhatUserConfig = {
   namedAccounts: {
     deployer: 0,
   },
+  // A single key, not the per-network object: the object form routes to the retired Etherscan V1
+  // endpoint.
   etherscan: {
-    apiKey: {
-      sepolia: ETHERSCAN_API_KEY,
-    },
+    apiKey: ETHERSCAN_API_KEY,
   },
   gasReporter: {
     currency: "USD",

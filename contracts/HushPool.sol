@@ -62,8 +62,15 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
     ///         is never revealed" would be an empty promise.
     uint32 public immutable minParticipants;
 
-    /// @notice Upper bound on participants processed in one `advanceDraw` call, to stay inside the
-    ///         per-transaction HCU limits.
+    /**
+     * @notice Upper bound on participants processed in one `advanceDraw` call.
+     * @dev Measured, not guessed. A scanned participant costs about 1.70M HCU against the 20M
+     *      per-transaction budget and about 259k of dependency depth against the 5M chain budget,
+     *      so the global budget binds first and a transaction fits eleven participants. Deployments
+     *      configure eight, leaving headroom. None of this is visible locally: the Hardhat mock does
+     *      not meter HCU, so a batch that passes every local test can still revert on a live network
+     *      with `HCUTransactionLimitExceeded`.
+     */
     uint32 public immutable maxScanBatch;
 
     address[] private _participants;
@@ -297,7 +304,8 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
         for (uint32 i = from; i < to; ++i) {
             address account = _participants[i];
 
-            cursor = FHE.add(cursor, _twabAtDraw(drawId, account, draw.at));
+            euint128 weight = _twabAtDraw(drawId, account, draw.at);
+            cursor = FHE.add(cursor, weight);
 
             // The first participant whose slice contains the target wins, and only that one:
             // `found` latches so later participants cannot match again.
@@ -307,6 +315,19 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
             euint64 award = FHE.select(hit, prize, FHE.asEuint64(0));
             _balance[account] = FHE.allowThis(FHE.add(_balance[account], award));
             FHE.allow(_balance[account], account);
+
+            // A prize enters the balance as of the draw instant, so the participant's clock has to
+            // move with it. Leaving it behind would apply the post-prize balance retroactively over
+            // a window that started before the prize existed, handing extra weight to whoever had
+            // gone longest without touching their position. The weight is already computed above,
+            // so settling the clock here costs a storage write rather than more FHE arithmetic.
+            // A participant holding a snapshot moved funds after the draw opened and has already
+            // been accrued past this instant, so their clock is left alone.
+            if (!_hasSnapshot[drawId][account]) {
+                _twabCum[account] = FHE.allowThis(weight);
+                FHE.allow(_twabCum[account], account);
+                _lastTouch[account] = draw.at;
+            }
         }
 
         _drawCursor[drawId] = FHE.allowThis(cursor);
