@@ -32,8 +32,11 @@ What that does not fix is written down rather than glossed over. See
 
 ## Live on Sepolia
 
+**[hushpool.vercel.app](https://hushpool.vercel.app)** — connect a wallet and use every part of it.
+
 | | |
 |---|---|
+| App | [hushpool.vercel.app](https://hushpool.vercel.app) |
 | HushPool | [`0xaD044339Fd6235561aCC6cDc5727ab64eE26F304`](https://sepolia.etherscan.io/address/0xaD044339Fd6235561aCC6cDc5727ab64eE26F304) |
 | ExitQueue | [`0x4d0fBa42FFa6aD710D751f50a3941893A362969B`](https://sepolia.etherscan.io/address/0x4d0fBa42FFa6aD710D751f50a3941893A362969B) |
 | Asset — Confidential USDT | [`0x4E7B06D78965594eB5EF5414c357ca21E1554491`](https://sepolia.etherscan.io/address/0x4E7B06D78965594eB5EF5414c357ca21E1554491) |
@@ -129,17 +132,30 @@ Reproduce with `FAIRNESS_FULL=1 npx hardhat test test/Fairness.ts`.
 
 ## Try it in five minutes
 
+Open [hushpool.vercel.app](https://hushpool.vercel.app) with any injected wallet on Sepolia. There
+are already depositors in the pool, so every step below works immediately.
+
+1. **Mint test funds.** Press *Mint tUSDT*. The faucet is Zama's own public USDT mock, open to
+   anyone, so no allowlist and nobody to ask.
+2. **Deposit.** Press *Deposit privately*. Your wallet signs a shield, then a transfer that carries
+   a ciphertext rather than a number. Look at the transaction afterwards: the amount is not in it.
+3. **Read your own balance.** Press *Decrypt for me*. You sign once, and the number resolves out of
+   the surface. Nothing was published to reveal it — the same handle stays unreadable to everyone
+   else, including us.
+4. **Run a draw.** Press *Start a draw*, then *Advance the scan* until it settles. Open either
+   transaction on Etherscan. There is no winner in it. The prize has already been credited, to an
+   encrypted balance, and the winning index was never decrypted.
+5. **Check whether it was you.** Decrypt your balance again. If it grew, you won, and you are the
+   only person who knows.
+
+Everything else runs locally with no keys and no network:
+
 ```bash
 git clone <this repo> && cd hushpool
 npm install
-npx hardhat test          # 34 tests, no keys, no network, no faucet
-```
-
-Against the live deployment, with a funded Sepolia key in `.env`:
-
-```bash
-npx hardhat run scripts/seed.ts --network sepolia   # fund demo depositors, top up the pot
-npx hardhat run scripts/draw.ts --network sepolia   # run a draw, print the cost of every tx
+npx hardhat test                                     # 34 tests
+FAIRNESS_FULL=1 npx hardhat test test/Fairness.ts     # 2,400 draws, chi-square
+npx hardhat test test/Benchmarks.ts                   # the cost tables above
 ```
 
 ## Repository
