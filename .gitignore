@@ -12,3 +12,11 @@ dist/
 deployments/localhost/
 *.log
 .DS_Store
+
+# design exploration, not part of the product
+ui-prototypes/
+
+# next.js
+frontend/.next/
+frontend/out/
+frontend/node_modules/
