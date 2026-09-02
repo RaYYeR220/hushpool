@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* Placeholder shell. Replaced once a visual direction is chosen. */
+:root {
+  color-scheme: dark;
+}
+body {
+  margin: 0;
+  background: #0b0b0c;
+  color: #e8e6e3;
+  font: 15px/1.55 ui-sans-serif, system-ui, sans-serif;
+}
+.wrap {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+section {
+  border-top: 1px solid #232326;
+  padding: 1.5rem 0;
+}
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #8b8b90;
+}
+dl {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+dt {
+  color: #8b8b90;
+}
+dd {
+  margin: 0;
+}
+.figure {
+  font-size: 2rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 0.75rem;
+}
+.masked {
+  font-family: ui-monospace, monospace;
+  font-size: 1.1rem;
+  color: #6f6f75;
+  word-break: break-all;
+}
+button {
+  font: inherit;
+  padding: 0.5rem 0.9rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  background: #1a1a1d;
+  color: inherit;
+  border: 1px solid #33333a;
+  border-radius: 3px;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+input {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  background: #131316;
+  color: inherit;
+  border: 1px solid #33333a;
+  border-radius: 3px;
+  width: 10rem;
+}
+.error {
+  color: #e2767a;
+}
+.status {
+  color: #9a9aa2;
+}
+footer {
+  padding-top: 1.5rem;
+  color: #6f6f75;
+  font-size: 0.85rem;
+}
+a {
+  color: #b9b9c2;
+}
