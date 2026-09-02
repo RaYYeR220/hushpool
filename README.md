@@ -34,8 +34,8 @@ What that does not fix is written down rather than glossed over. See
 
 | | |
 |---|---|
-| HushPool | [`0x9D53a0A8467EeB5173eCd9b09C862A622bF90f94`](https://sepolia.etherscan.io/address/0x9D53a0A8467EeB5173eCd9b09C862A622bF90f94) |
-| ExitQueue | [`0xBafc7876ACb9511b06fd888584B1a1327BE0e203`](https://sepolia.etherscan.io/address/0xBafc7876ACb9511b06fd888584B1a1327BE0e203) |
+| HushPool | [`0xaD044339Fd6235561aCC6cDc5727ab64eE26F304`](https://sepolia.etherscan.io/address/0xaD044339Fd6235561aCC6cDc5727ab64eE26F304) |
+| ExitQueue | [`0x4d0fBa42FFa6aD710D751f50a3941893A362969B`](https://sepolia.etherscan.io/address/0x4d0fBa42FFa6aD710D751f50a3941893A362969B) |
 | Asset — Confidential USDT | [`0x4E7B06D78965594eB5EF5414c357ca21E1554491`](https://sepolia.etherscan.io/address/0x4E7B06D78965594eB5EF5414c357ca21E1554491) |
 | Faucet — public USDT mock | [`0xa7dA08FafDC9097Cc0E7D4f113A61e31d7e8e9b0`](https://sepolia.etherscan.io/address/0xa7dA08FafDC9097Cc0E7D4f113A61e31d7e8e9b0) |
 
@@ -43,10 +43,14 @@ The pool runs against Zama's own published Confidential USDT rather than a token
 faucet is the canonical one: call `mint(yourAddress, 1000000000)` on the public mock for 1,000 USDT.
 It is open to anyone, repeatable, and needs no allowlist.
 
-A completed draw over live participants:
-[`startDraw`](https://sepolia.etherscan.io/tx/0x80f455a47d110e6132f9a44c86e6949172a0dffc05d384de64ec4a6b480ba48a)
-· [`advanceDraw`](https://sepolia.etherscan.io/tx/0x91d659c155667d481c7a05a57f957b89db13d262fbb28fbba42525742c566f80).
-Neither transaction reveals a winner, because neither one knows.
+A complete draw over twelve live participants, chunked into two scans:
+[`startDraw`](https://sepolia.etherscan.io/tx/0xab09ac1e66fc3fd5974ed43f908629aa4ff89f40f338e87c9f2073efae912b50)
+· [`advanceDraw`](https://sepolia.etherscan.io/tx/0x78352c9a8d75e15aa35edca7a1f18137d1feee1fbbd48a11e2f2b699463ffc98)
+· [`advanceDraw`](https://sepolia.etherscan.io/tx/0x9d9cbda7ad85a9831a2792a052014876dcaafcd7b69c900a2ba7e780f22c055b).
+
+Read them. There is no winner in any of them, because none of them knows: the only per-scan event is
+`DrawAdvanced`, carrying a count. Twelve balances were written and one of them changed, and which
+one is not recoverable from the chain.
 
 ## How a draw works
 
@@ -74,16 +78,61 @@ found = FHE.or(found, hit);
 euint64 award = FHE.select(hit, prize, FHE.asEuint64(0));
 ```
 
-The walk is chunked across transactions and resumable by anyone. That is not an optimisation: a
-prefix sum is a sequential dependency chain, and FHEVM caps a transaction at 5M HCU along any single
-chain, well before the 20M global cap becomes the constraint.
+The walk is chunked across transactions and resumable by anyone. That is not an optimisation but a
+hard limit: a scanned participant costs about 1.70M HCU against FHEVM's 20M per-transaction budget,
+so eleven fit in one transaction and a twelfth reverts.
+
+## Measured cost
+
+Not estimates. Gas and HCU are read from the local FHEVM mock, and the ceiling was confirmed against
+the live network, where `advanceDraw(11)` succeeds and `advanceDraw(12)` reverts with
+`HCUTransactionLimitExceeded`.
+
+| operation | gas | HCU (global) | HCU (depth) |
+| --- | ---: | ---: | ---: |
+| deposit, first time | 1,106,799 | 2,668,352 | 955,064 |
+| deposit, already a participant | 957,269 | 3,623,192 | 955,032 |
+| withdraw | 754,457 | 3,289,128 | 955,032 |
+| sponsorPrize | 297,428 | 586,064 | 531,032 |
+| startDraw | 313,617 | 2,702,128 | 2,678,032 |
+
+| participants scanned | gas | gas each | HCU (global) | HCU (depth) |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 372,855 | 372,855 | 1,695,098 | 1,671,032 |
+| 4 | 1,115,569 | 278,892 | 6,780,296 | 2,448,032 |
+| 8 | 2,103,194 | 262,899 | 13,560,560 | 3,484,032 |
+| 16 | reverts | — | — | — |
+
+Marginal cost per scanned participant: **247,176 gas**, **1,695,066 HCU**, and **259,000 HCU of
+dependency depth**, on a fixed 126,111 gas per call. The global budget is exhausted at 11
+participants and the dependency chain only at 13, so the global budget binds first. Deployments
+configure a scan batch of 8, leaving headroom.
+
+Reproduce with `npx hardhat test test/Benchmarks.ts`.
+
+## The draw is provably unbiased
+
+`test/Fairness.ts` runs 800 draws per case and tests the winner distribution with a chi-square
+goodness-of-fit test at p = 0.001. Every draw also asserts that exactly one balance moved and that it
+moved by exactly the prize.
+
+| case | df | chi-square | critical value | result |
+| --- | ---: | ---: | ---: | --- |
+| six equal deposits, equal holding time | 5 | 8.005 | 20.515 | pass |
+| deposits in a 1:2:3:4 ratio | 3 | 3.729 | 16.266 | pass |
+| equal deposits, holding times 2:1 | 1 | 0.181 | 10.828 | pass |
+
+In the time-weighting case the longer holder won 67.4% of 800 draws against the 66.7% its
+time-weighted share predicts.
+
+Reproduce with `FAIRNESS_FULL=1 npx hardhat test test/Fairness.ts`.
 
 ## Try it in five minutes
 
 ```bash
 git clone <this repo> && cd hushpool
 npm install
-npx hardhat test          # 25+ tests, no keys, no network
+npx hardhat test          # 34 tests, no keys, no network, no faucet
 ```
 
 Against the live deployment, with a funded Sepolia key in `.env`:
@@ -129,6 +178,24 @@ Things that are not in the "wrap an ERC-20" starter and cost real time to get ri
   baked into the bytecode at compile time. Compiling for the local mock and then verifying produces
   a bytecode mismatch that looks like a compiler-settings problem and is not. Run
   `npx hardhat compile --force --network sepolia` before verifying.
+
+## Known limits
+
+Stated here rather than left for a reviewer to find.
+
+- **The participant list never shrinks.** A depositor who withdraws everything stays in the array and
+  is still scanned on every draw, at 247k gas a time. A pool that has ever seen a thousand addresses
+  would need 91 transactions per draw, permanently. Removing an entry safely means also removing that
+  participant's contribution to the encrypted global time-weighted total, and a clamped subtraction
+  there could silently zero the total and hand every draw to the first participant. Doing it properly
+  needs a signed accumulator or a tombstone-and-rebuild pass, which is more than this deadline
+  allowed. Nothing is at risk of being lost — the cost is gas, and it is bounded and measurable.
+- **A participant who moves funds mid-scan keeps a slightly stale clock.** Their draw-time weight is
+  frozen correctly, so their odds are right, but the prize credited to them is not folded into their
+  time-weighted balance until they next touch their position. The error is bounded by the duration of
+  the scan.
+- **Nothing here is audited.** OpenZeppelin's confidential-contracts library is itself pre-1.0 and its
+  own documentation describes it as not formally audited.
 
 ## Bounty requirements
 
