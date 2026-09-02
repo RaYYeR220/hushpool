@@ -3,7 +3,10 @@ pragma solidity ^0.8.27;
 
 import {FHE, ebool, euint64, euint128, externalEuint64} from "@fhevm/solidity/lib/FHE.sol";
 import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC7984} from "@openzeppelin/confidential-contracts/interfaces/IERC7984.sol";
+import {IERC7984ERC20Wrapper} from "@openzeppelin/confidential-contracts/interfaces/IERC7984ERC20Wrapper.sol";
 import {IERC7984Receiver} from "@openzeppelin/confidential-contracts/interfaces/IERC7984Receiver.sol";
 import {FHESafeMath} from "@openzeppelin/confidential-contracts/utils/FHESafeMath.sol";
 
@@ -45,7 +48,15 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
         DrawState state;
     }
 
-    IERC7984 public immutable asset;
+    using SafeERC20 for IERC20;
+
+    /// @notice The confidential token participants hold. It is a wrapper so that the prize pot can be
+    ///         funded in the public underlying and shielded here, which keeps every credited prize
+    ///         backed by tokens this contract actually holds.
+    IERC7984ERC20Wrapper public immutable asset;
+
+    /// @notice The public token behind `asset`, used only to fund prizes.
+    IERC20 public immutable underlying;
 
     /// @notice A draw is refused below this many participants: with too few depositors, "the winner
     ///         is never revealed" would be an empty promise.
@@ -93,11 +104,12 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
     error NoPrize();
     error InvalidConfiguration();
 
-    constructor(IERC7984 asset_, uint32 minParticipants_, uint32 maxScanBatch_) {
+    constructor(IERC7984ERC20Wrapper asset_, uint32 minParticipants_, uint32 maxScanBatch_) {
         if (address(asset_) == address(0) || minParticipants_ == 0 || maxScanBatch_ == 0) {
             revert InvalidConfiguration();
         }
         asset = asset_;
+        underlying = IERC20(asset_.underlying());
         minParticipants = minParticipants_;
         maxScanBatch = maxScanBatch_;
         _lastGlobalTouch = uint64(block.timestamp);
@@ -210,9 +222,21 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
 
     // ---------------------------------------------------------------- prize funding
 
-    /// @notice Fund the prize pot. The pot is public on purpose: a visible jackpot is the point of a
-    ///         prize pool, and it says nothing about who will win it.
+    /**
+     * @notice Fund the prize pot with the public underlying token, which this contract shields.
+     * @dev The pot is deliberately public: a visible jackpot is the point of a prize pool, and it
+     *      says nothing about who will win it. Funding it in the public token is what makes every
+     *      credited prize solvent -- the tokens are held here before any draw can award them, and a
+     *      yield source delivers its harvest through exactly this path.
+     */
     function sponsorPrize(uint64 amount) external {
+        if (amount == 0) revert NoPrize();
+
+        uint256 gross = uint256(amount) * asset.rate();
+        underlying.safeTransferFrom(msg.sender, address(this), gross);
+        underlying.forceApprove(address(asset), gross);
+        asset.wrap(address(this), gross);
+
         prizePot += amount;
         emit PrizeSponsored(msg.sender, amount);
     }

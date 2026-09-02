@@ -4,7 +4,14 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers, fhevm } from "hardhat";
 
-import { HushPool, HushPool__factory, TestConfidentialToken, TestConfidentialToken__factory } from "../types";
+import {
+  HushPool,
+  HushPool__factory,
+  TestUnderlying,
+  TestUnderlying__factory,
+  TestWrappedToken,
+  TestWrappedToken__factory,
+} from "../types";
 
 const TRANSFER_AND_CALL = "confidentialTransferAndCall(address,bytes32,bytes,bytes)";
 
@@ -12,7 +19,8 @@ const MIN_PARTICIPANTS = 3;
 const MAX_SCAN_BATCH = 16;
 
 describe("HushPool", function () {
-  let token: TestConfidentialToken;
+  let underlying: TestUnderlying;
+  let token: TestWrappedToken;
   let tokenAddress: string;
   let pool: HushPool;
   let poolAddress: string;
@@ -23,9 +31,10 @@ describe("HushPool", function () {
 
     signers = await ethers.getSigners();
 
-    token = await (
-      (await ethers.getContractFactory("TestConfidentialToken")) as TestConfidentialToken__factory
-    ).deploy();
+    underlying = await ((await ethers.getContractFactory("TestUnderlying")) as TestUnderlying__factory).deploy();
+    token = await ((await ethers.getContractFactory("TestWrappedToken")) as TestWrappedToken__factory).deploy(
+      await underlying.getAddress(),
+    );
     tokenAddress = await token.getAddress();
 
     pool = await ((await ethers.getContractFactory("HushPool")) as HushPool__factory).deploy(
@@ -36,8 +45,19 @@ describe("HushPool", function () {
     poolAddress = await pool.getAddress();
   });
 
+  /// Mint the public token and shield it, which is how a real depositor arrives.
   async function fund(signer: HardhatEthersSigner, amount: number) {
-    await (await token.mint(signer.address, amount)).wait();
+    await (await underlying.mint(signer.address, amount)).wait();
+    await (await underlying.connect(signer).approve(tokenAddress, amount)).wait();
+    await (await token.connect(signer).wrap(signer.address, amount)).wait();
+  }
+
+  /// Prizes are funded in the public token, so the pool holds the tokens before it can award them.
+  async function sponsor(amount: number) {
+    const sponsorSigner = signers[0];
+    await (await underlying.mint(sponsorSigner.address, amount)).wait();
+    await (await underlying.connect(sponsorSigner).approve(poolAddress, amount)).wait();
+    await (await pool.connect(sponsorSigner).sponsorPrize(amount)).wait();
   }
 
   async function deposit(signer: HardhatEthersSigner, amount: number) {
@@ -132,7 +152,7 @@ describe("HushPool", function () {
 
     it("stays available while a draw is being scanned, so the no-loss guarantee never pauses", async function () {
       const players = await seed(4);
-      await (await pool.sponsorPrize(500_000)).wait();
+      await sponsor(500_000);
       await time.increase(3_600);
       await (await pool.startDraw()).wait();
 
@@ -147,7 +167,7 @@ describe("HushPool", function () {
   describe("draw preconditions", function () {
     it("refuses to draw below the minimum anonymity set", async function () {
       await seed(MIN_PARTICIPANTS - 1);
-      await (await pool.sponsorPrize(100_000)).wait();
+      await sponsor(100_000);
       await time.increase(3_600);
 
       await expect(pool.startDraw())
@@ -163,7 +183,7 @@ describe("HushPool", function () {
 
     it("refuses to open a second draw while one is scanning", async function () {
       await seed(4);
-      await (await pool.sponsorPrize(100_000)).wait();
+      await sponsor(100_000);
       await time.increase(3_600);
       await (await pool.startDraw()).wait();
 
@@ -175,7 +195,7 @@ describe("HushPool", function () {
     it("awards the whole prize to exactly one participant", async function () {
       const players = await seed(5);
       const prize = 700_000;
-      await (await pool.sponsorPrize(prize)).wait();
+      await sponsor(prize);
       await time.increase(3_600);
 
       const before = await balancesOf(players);
@@ -192,7 +212,7 @@ describe("HushPool", function () {
 
     it("resumes a scan across several transactions", async function () {
       const players = await seed(6);
-      await (await pool.sponsorPrize(300_000)).wait();
+      await sponsor(300_000);
       await time.increase(3_600);
 
       await (await pool.startDraw()).wait();
@@ -215,7 +235,7 @@ describe("HushPool", function () {
 
     it("emits the same event shape for every participant, winner or not", async function () {
       await seed(4);
-      await (await pool.sponsorPrize(200_000)).wait();
+      await sponsor(200_000);
       await time.increase(3_600);
       await (await pool.startDraw()).wait();
 
@@ -229,10 +249,41 @@ describe("HushPool", function () {
 
     it("clears the pot when a draw opens so a prize cannot be paid twice", async function () {
       await seed(4);
-      await (await pool.sponsorPrize(200_000)).wait();
+      await sponsor(200_000);
       await time.increase(3_600);
       await (await pool.startDraw()).wait();
 
+      expect(await pool.prizePot()).to.eq(0n);
+    });
+  });
+
+  describe("solvency", function () {
+    it("actually holds the tokens behind every credited balance", async function () {
+      const players = await seed(4);
+      const prize = 400_000;
+      await sponsor(prize);
+      await time.increase(3_600);
+
+      const before = await balancesOf(players);
+      await runDrawToCompletion();
+      const after = await balancesOf(players);
+
+      // Everyone empties the pool, winner included. If a prize were credited without being funded,
+      // the last withdrawal would silently pay zero.
+      for (let i = 0; i < players.length; i++) {
+        const owed = after[i];
+        const enc = await fhevm.createEncryptedInput(poolAddress, players[i].address).add64(owed).encrypt();
+        await (await pool.connect(players[i])["withdraw(bytes32,bytes)"](enc.handles[0], enc.inputProof)).wait();
+        expect(await balanceOf(players[i]), "pool balance is fully drained").to.eq(0n);
+      }
+
+      const credited = after.reduce((a, b) => a + b, 0n);
+      const deposited = before.reduce((a, b) => a + b, 0n);
+      expect(credited - deposited, "exactly the prize was created").to.eq(BigInt(prize));
+    });
+
+    it("refuses to fund a prize the sponsor has not approved", async function () {
+      await expect(pool.sponsorPrize(1_000)).to.be.reverted;
       expect(await pool.prizePot()).to.eq(0n);
     });
   });
