@@ -1,0 +1,14 @@
+node_modules/
+artifacts/
+cache/
+coverage/
+coverage.json
+types/
+fhevmTemp/
+dist/
+.env
+.env.*
+!.env.example
+deployments/localhost/
+*.log
+.DS_Store
