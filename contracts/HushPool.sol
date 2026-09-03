@@ -308,8 +308,14 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
             cursor = FHE.add(cursor, weight);
 
             // The first participant whose slice contains the target wins, and only that one:
-            // `found` latches so later participants cannot match again.
-            ebool hit = FHE.and(FHE.not(found), FHE.lt(target, cursor));
+            // `found` latches so later participants cannot match again. The last participant
+            // scanned takes whatever is left over, so a draw always credits someone even if the
+            // running total has drifted a hair above the slices actually walked. Without that,
+            // a target landing past the final slice would credit the prize to nobody and leave it
+            // in the contract, owned by no one and unwithdrawable.
+            ebool hit = i + 1 == draw.participantCount
+                ? FHE.not(found)
+                : FHE.and(FHE.not(found), FHE.lt(target, cursor));
             found = FHE.or(found, hit);
 
             euint64 award = FHE.select(hit, prize, FHE.asEuint64(0));
@@ -336,7 +342,18 @@ contract HushPool is ZamaEthereumConfig, IERC7984Receiver {
 
         if (to == draw.participantCount) {
             draw.state = DrawState.Settled;
+
+            // Settle the pool's own clock at the draw instant before the prize joins the total.
+            // Otherwise the prize is integrated over a window that began before it existed, the
+            // pool's running total drifts above the sum of the participants' slices, and a target
+            // landing in that gap belongs to no one. Never move the clock backwards: a deposit
+            // made after the draw opened has already carried it past this instant.
+            if (draw.at > _lastGlobalTouch) {
+                _totalTwabCum = FHE.allowThis(_globalTwabAt(draw.at));
+                _lastGlobalTouch = draw.at;
+            }
             _totalBalance = FHE.allowThis(FHE.add(_totalBalance, FHE.asEuint64(draw.prize)));
+
             emit DrawSettled(drawId);
         }
 

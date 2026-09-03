@@ -76,7 +76,9 @@ both: the product stays inside `euint128` for any total below `2**96`, and the b
 whose slice contains the target:
 
 ```solidity
-ebool hit = FHE.and(FHE.not(found), FHE.lt(target, cursor));
+ebool hit = i + 1 == draw.participantCount
+    ? FHE.not(found)                                  // the last one absorbs any residual
+    : FHE.and(FHE.not(found), FHE.lt(target, cursor));
 found = FHE.or(found, hit);
 euint64 award = FHE.select(hit, prize, FHE.asEuint64(0));
 ```
@@ -121,8 +123,8 @@ moved by exactly the prize.
 
 | case | df | chi-square | critical value | result |
 | --- | ---: | ---: | ---: | --- |
-| six equal deposits, equal holding time | 5 | 8.005 | 20.515 | pass |
-| deposits in a 1:2:3:4 ratio | 3 | 3.729 | 16.266 | pass |
+| six equal deposits, equal holding time | 5 | 3.880 | 20.515 | pass |
+| deposits in a 1:2:3:4 ratio | 3 | 1.129 | 16.266 | pass |
 | equal deposits, holding times 2:1 | 1 | 0.181 | 10.828 | pass |
 
 In the time-weighting case the longer holder won 67.4% of 800 draws against the 66.7% its
@@ -153,7 +155,7 @@ Everything else runs locally with no keys and no network:
 ```bash
 git clone <this repo> && cd hushpool
 npm install
-npx hardhat test                                     # 34 tests
+npx hardhat test                                     # 36 tests
 FAIRNESS_FULL=1 npx hardhat test test/Fairness.ts     # 2,400 draws, chi-square
 npx hardhat test test/Benchmarks.ts                   # the cost tables above
 ```
@@ -177,6 +179,15 @@ Things that are not in the "wrap an ERC-20" starter and cost real time to get ri
   an encrypted predicate is a plaintext oracle: repeated calls binary-search a victim's balance
   without decrypting anything. Over-withdrawing here moves an encrypted zero and succeeds. Every
   entry point taking an encrypted amount also checks `FHE.isSenderAllowed`.
+- **A draw must always credit somebody.** The target is drawn from the pool's running total of
+  time-weighted balances, and the scan credits whoever's slice contains it. An earlier revision
+  added a prize to that total without settling the pool's clock first, so the prize was integrated
+  over a window predating it; the total drifted above the sum of the slices, and a target landing in
+  that gap belonged to nobody — the prize stayed in the contract, owned by no one and
+  unwithdrawable. It is fixed in two independent ways: the clock is settled at the draw instant
+  before the prize joins the total, and the last participant scanned absorbs any residual. A stress
+  test with prizes as large as the pool and long quiet gaps reproduces the original failure and
+  passes now.
 - **Prizes have to be solvent before they are credited.** An earlier revision incremented the pot
   without taking tokens, which would have made the final withdrawal silently pay zero. Prizes are
   now funded in the public underlying and shielded by the pool, so the tokens are in hand before a
