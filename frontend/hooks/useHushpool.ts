@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useDecryptValues, useEncrypt, useGrantPermit, useHasPermit } from "@zama-fhe/react-sdk";
 import { useCallback, useMemo, useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
@@ -10,9 +11,21 @@ import { wagmiConfig } from "~/lib/wagmi";
 
 const ZERO_HANDLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-/// FHE transactions are heavy and estimation is unreliable against a relayer, so calls that touch
-/// ciphertext carry an explicit cap below Sepolia's block gas limit.
-const FHE_GAS = 15_000_000n;
+/**
+ * Explicit gas limits, sized per call from measured usage with room to spare.
+ *
+ * A wallet reserves `gas x maxFeePerGas` up front, so one blanket limit large enough for the
+ * heaviest call makes every other one fail for an account with an ordinary testnet balance — the
+ * transaction is rejected as costing more than the account holds, before it is ever sent. These are
+ * roughly triple what each call actually uses.
+ */
+const GAS = {
+  deposit: 3_000_000n,
+  withdraw: 2_500_000n,
+  sponsor: 1_200_000n,
+  startDraw: 1_200_000n,
+  advanceDraw: 6_000_000n,
+} as const;
 
 export const DECIMALS = 6;
 
@@ -180,6 +193,7 @@ export function usePoolActions() {
   const { address } = useAccount();
   const encrypt = useEncrypt();
   const { writeContractAsync } = useWriteContract();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>();
   const [lastDone, setLastDone] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -192,13 +206,17 @@ export function usePoolActions() {
       await fn();
       setStatus(undefined);
       setLastDone(done);
+      // Every action here changes something the page is showing — a balance handle, the pot, the
+      // participant count. Without this the position panel keeps reporting the state from before
+      // the deposit until the page is reloaded.
+      await queryClient.invalidateQueries();
     } catch (error) {
       // Wallet errors arrive as long multi-line dumps; the first line is the part worth showing.
       setStatus(error instanceof Error ? error.message.split(/\r?\n/)[0] : String(error));
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [queryClient]);
 
   /**
    * Send a transaction and wait for it to be mined.
@@ -287,7 +305,7 @@ export function usePoolActions() {
           abi: wrapperAbi,
           functionName: "confidentialTransferAndCall",
           args: [sepolia.pool, enc.encryptedValues[0]!, enc.inputProof, "0x"],
-          gas: FHE_GAS,
+          gas: GAS.deposit,
         });
       }),
     [address, approve, encrypt, run, send],
@@ -307,7 +325,7 @@ export function usePoolActions() {
           abi: poolAbi,
           functionName: "withdraw",
           args: [enc.encryptedValues[0]!, enc.inputProof],
-          gas: FHE_GAS,
+          gas: GAS.withdraw,
         });
       }),
     [address, encrypt, run, send],
@@ -322,7 +340,7 @@ export function usePoolActions() {
           abi: poolAbi,
           functionName: "sponsorPrize",
           args: [amount],
-          gas: FHE_GAS,
+          gas: GAS.sponsor,
         });
       }),
     [approve, run, send],
@@ -334,45 +352,56 @@ export function usePoolActions() {
 /** Both draw entry points are permissionless, so the UI exposes them to anyone. */
 export function useDrawActions() {
   const { writeContractAsync } = useWriteContract();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
 
-  // Advancing a scan depends on the draw it advances having landed, so both wait for a receipt
-  // rather than resolving the moment the transaction is sent.
-  const startDraw = useCallback(async () => {
+  /** A failing draw used to look like a button that simply did nothing. */
+  const guard = useCallback(async (fn: () => Promise<unknown>) => {
     setBusy(true);
+    setError(undefined);
     try {
-      const hash = await writeContractAsync({
-        address: sepolia.pool,
-        abi: poolAbi,
-        functionName: "startDraw",
-        gas: FHE_GAS,
-      });
-      await waitForTransactionReceipt(wagmiConfig, { hash });
+      await fn();
+      await queryClient.invalidateQueries();
+    } catch (e) {
+      setError(describeTxFailure(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
-  }, [writeContractAsync]);
+  }, [queryClient]);
+
+  // Advancing a scan depends on the draw it advances having landed, so both wait for a receipt
+  // rather than resolving the moment the transaction is sent.
+  const startDraw = useCallback(
+    () =>
+      guard(async () => {
+        const hash = await writeContractAsync({
+          address: sepolia.pool,
+          abi: poolAbi,
+          functionName: "startDraw",
+          gas: GAS.startDraw,
+        });
+        await waitForTransactionReceipt(wagmiConfig, { hash });
+      }),
+    [writeContractAsync, guard],
+  );
 
   const advanceDraw = useCallback(
-    async (batchSize: number) => {
-      setBusy(true);
-      try {
+    (batchSize: number) =>
+      guard(async () => {
         const hash = await writeContractAsync({
           address: sepolia.pool,
           abi: poolAbi,
           functionName: "advanceDraw",
           args: [batchSize],
-          gas: FHE_GAS,
+          gas: GAS.advanceDraw,
         });
         await waitForTransactionReceipt(wagmiConfig, { hash });
-      } finally {
-        setBusy(false);
-      }
-    },
-    [writeContractAsync],
+      }),
+    [writeContractAsync, guard],
   );
 
-  return { startDraw, advanceDraw, busy };
+  return { startDraw, advanceDraw, busy, error };
 }
 
 /** The batched exit: a request joins a batch, and the batch settles only when it is safe to. */
@@ -423,4 +452,17 @@ export function useExitQueue() {
       settleable.refetch();
     },
   };
+}
+
+/** Turns the wallet's own wording into something a first-time visitor can act on. */
+function describeTxFailure(message: string): string {
+  const first = message.split(/\r?\n/)[0];
+  if (/exceeds the balance|insufficient funds/i.test(message)) {
+    return "Not enough Sepolia ETH in this wallet to cover the gas for that transaction.";
+  }
+  if (/rejected|denied|user refused/i.test(message)) return "Transaction rejected in the wallet.";
+  if (/NoPrize/i.test(message)) return "There is nothing in the prize pot yet — sponsor it first.";
+  if (/TooFewParticipants/i.test(message)) return "Too few depositors for a draw to be meaningful yet.";
+  if (/DrawInProgress/i.test(message)) return "A draw is already running — advance the scan instead.";
+  return first;
 }

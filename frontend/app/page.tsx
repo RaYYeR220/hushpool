@@ -362,6 +362,8 @@ export default function Home() {
           </button>
         </div>
 
+        {draw.error ? <Notice tone="bad" title="That did not go through" detail={draw.error} /> : null}
+
         <div className="chips">
           <div className="chip pressed-sm">
             <span className="k">Randomness</span>
