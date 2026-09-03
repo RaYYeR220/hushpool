@@ -46,13 +46,13 @@ The pool runs against Zama's own published Confidential USDT rather than a token
 faucet is the canonical one: call `mint(yourAddress, 1000000000)` on the public mock for 1,000 USDT.
 It is open to anyone, repeatable, and needs no allowlist.
 
-A complete draw over twelve live participants, chunked into two scans:
-[`startDraw`](https://sepolia.etherscan.io/tx/0xab09ac1e66fc3fd5974ed43f908629aa4ff89f40f338e87c9f2073efae912b50)
-· [`advanceDraw`](https://sepolia.etherscan.io/tx/0x78352c9a8d75e15aa35edca7a1f18137d1feee1fbbd48a11e2f2b699463ffc98)
-· [`advanceDraw`](https://sepolia.etherscan.io/tx/0x9d9cbda7ad85a9831a2792a052014876dcaafcd7b69c900a2ba7e780f22c055b).
+A complete draw over thirteen live participants, chunked into two scans:
+[`startDraw`](https://sepolia.etherscan.io/tx/0xb0649e9de6a03c9da7f34696e32e853de0a98541e9bebad8a40552fbcaf2ed59)
+· [`advanceDraw`](https://sepolia.etherscan.io/tx/0x2abec432dd2d2939eb5bf9c99a3690378b6298b523428eb6d970d24a6f42a8bd)
+· [`advanceDraw`](https://sepolia.etherscan.io/tx/0xf7cbe248fa6c0dc021885b1b3cc6c484c86eff815665f2733ffc26ae4174b1ac).
 
 Read them. There is no winner in any of them, because none of them knows: the only per-scan event is
-`DrawAdvanced`, carrying a count. Twelve balances were written and one of them changed, and which
+`DrawAdvanced`, carrying a count. Thirteen balances were written and one of them changed, and which
 one is not recoverable from the chain.
 
 ## How a draw works
