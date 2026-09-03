@@ -461,6 +461,9 @@ function describeTxFailure(message: string): string {
     return "Not enough Sepolia ETH in this wallet to cover the gas for that transaction.";
   }
   if (/rejected|denied|user refused/i.test(message)) return "Transaction rejected in the wallet.";
+  if (/ERC20InsufficientBalance|transfer amount exceeds balance/i.test(message)) {
+    return "Not enough test USDT in this wallet. Press Mint first — the faucet is open to anyone.";
+  }
   if (/NoPrize/i.test(message)) return "There is nothing in the prize pot yet — sponsor it first.";
   if (/TooFewParticipants/i.test(message)) return "Too few depositors for a draw to be meaningful yet.";
   if (/DrawInProgress/i.test(message)) return "A draw is already running — advance the scan instead.";
