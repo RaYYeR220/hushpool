@@ -2,8 +2,8 @@
 // Regenerate with: npm run gen:abi
 
 export const sepolia = {
-  pool: "0xaD044339Fd6235561aCC6cDc5727ab64eE26F304" as const,
-  exitQueue: "0x4d0fBa42FFa6aD710D751f50a3941893A362969B" as const,
+  pool: "0x498240e24e8d2b4a60A87674437a7deDD7bC01aA" as const,
+  exitQueue: "0xE10DCF11be2065da8D1AeB4aafB3A29deEEEc6dd" as const,
   asset: "0x4E7B06D78965594eB5EF5414c357ca21E1554491" as const,
   underlying: "0xa7dA08FafDC9097Cc0E7D4f113A61e31d7e8e9b0" as const,
 };

@@ -37,8 +37,8 @@ What that does not fix is written down rather than glossed over. See
 | | |
 |---|---|
 | App | [hushpool.vercel.app](https://hushpool.vercel.app) |
-| HushPool | [`0xaD044339Fd6235561aCC6cDc5727ab64eE26F304`](https://sepolia.etherscan.io/address/0xaD044339Fd6235561aCC6cDc5727ab64eE26F304) |
-| ExitQueue | [`0x4d0fBa42FFa6aD710D751f50a3941893A362969B`](https://sepolia.etherscan.io/address/0x4d0fBa42FFa6aD710D751f50a3941893A362969B) |
+| HushPool | [`0x498240e24e8d2b4a60A87674437a7deDD7bC01aA`](https://sepolia.etherscan.io/address/0x498240e24e8d2b4a60A87674437a7deDD7bC01aA) |
+| ExitQueue | [`0xE10DCF11be2065da8D1AeB4aafB3A29deEEEc6dd`](https://sepolia.etherscan.io/address/0xE10DCF11be2065da8D1AeB4aafB3A29deEEEc6dd) |
 | Asset — Confidential USDT | [`0x4E7B06D78965594eB5EF5414c357ca21E1554491`](https://sepolia.etherscan.io/address/0x4E7B06D78965594eB5EF5414c357ca21E1554491) |
 | Faucet — public USDT mock | [`0xa7dA08FafDC9097Cc0E7D4f113A61e31d7e8e9b0`](https://sepolia.etherscan.io/address/0xa7dA08FafDC9097Cc0E7D4f113A61e31d7e8e9b0) |
 
