@@ -101,7 +101,18 @@ export function useMyBalance() {
   const [authorised, setAuthorised] = useState(false);
   const [failure, setFailure] = useState<string>();
 
-  const decrypt = useDecryptValues(inputs, { enabled: revealRequested && authorised && !isEmpty });
+  /**
+   * Reading a balance goes through the protocol's threshold key service, which reconstructs the
+   * plaintext from shares held by separate signers. That reconstruction fails intermittently
+   * upstream — measured at roughly one attempt in three succeeding during a bad spell, identically
+   * across two SDK versions and outside the browser, so it is not something this app can fix. It is
+   * also transient, and a handful of attempts turns a coin flip into a near certainty.
+   */
+  const decrypt = useDecryptValues(inputs, {
+    enabled: revealRequested && authorised && !isEmpty,
+    retry: 7,
+    retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 12000),
+  });
 
   const value = isEmpty ? 0n : ((handle && decrypt.data?.[handle]) as bigint | undefined);
 
@@ -145,7 +156,7 @@ export function useMyBalance() {
  */
 function describeDecryptFailure(message: string): string {
   if (/failed to decrypt|reconstruct|decoding failure|kms/i.test(message)) {
-    return "The network's decryption service did not return a usable result. Your balance is safe and unchanged — this step runs off-chain, on Zama's key-management service, and can be retried later.";
+    return "The network's key service did not return a usable result after several attempts. Your balance is safe and unchanged — reconstruction happens off-chain and is retried automatically, so this usually clears on its own.";
   }
   if (/rejected|denied|user refused/i.test(message)) return "Signature rejected.";
   return message;
