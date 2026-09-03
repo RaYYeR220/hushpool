@@ -95,20 +95,20 @@ the live network, where `advanceDraw(11)` succeeds and `advanceDraw(12)` reverts
 
 | operation | gas | HCU (global) | HCU (depth) |
 | --- | ---: | ---: | ---: |
-| deposit, first time | 1,106,799 | 2,668,352 | 955,064 |
-| deposit, already a participant | 957,269 | 3,623,192 | 955,032 |
-| withdraw | 754,457 | 3,289,128 | 955,032 |
+| deposit, first time | 1,106,811 | 2,668,352 | 955,064 |
+| deposit, already a participant | 957,257 | 3,623,192 | 955,032 |
+| withdraw | 754,433 | 3,289,128 | 955,032 |
 | sponsorPrize | 297,428 | 586,064 | 531,032 |
 | startDraw | 313,617 | 2,702,128 | 2,678,032 |
 
 | participants scanned | gas | gas each | HCU (global) | HCU (depth) |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 372,855 | 372,855 | 1,695,098 | 1,671,032 |
-| 4 | 1,115,569 | 278,892 | 6,780,296 | 2,448,032 |
-| 8 | 2,103,194 | 262,899 | 13,560,560 | 3,484,032 |
+| 1 | 373,111 | 373,111 | 1,695,098 | 1,671,032 |
+| 4 | 1,116,593 | 279,148 | 6,780,296 | 2,448,032 |
+| 8 | 2,105,242 | 263,155 | 13,560,560 | 3,484,032 |
 | 16 | reverts | — | — | — |
 
-Marginal cost per scanned participant: **247,176 gas**, **1,695,066 HCU**, and **259,000 HCU of
+Marginal cost per scanned participant: **247,432 gas**, **1,695,066 HCU**, and **259,000 HCU of
 dependency depth**, on a fixed 126,111 gas per call. The global budget is exhausted at 11
 participants and the dependency chain only at 13, so the global budget binds first. Deployments
 configure a scan batch of 8, leaving headroom.

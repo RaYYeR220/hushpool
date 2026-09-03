@@ -242,7 +242,7 @@ describe("HushPool benchmarks", function () {
       `Extrapolating the fits, the 20M per-transaction HCU budget is spent at ` +
         `${Math.floor((20_000_000 - hcuFit.intercept) / hcuFit.slope)} participants and the 5M dependency-chain ` +
         `budget at ${Math.floor((5_000_000 - depthFit.intercept) / depthFit.slope)}, so the global budget binds ` +
-        `first -- the opposite of what \`deploy/01_pool.ts\` assumes.`,
+        `first, which is why the deployed batch is sized against the global budget.`,
     );
 
     expect(gasFit.slope, "scanning a participant should cost gas").to.be.greaterThan(0);
