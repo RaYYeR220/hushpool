@@ -1,7 +1,12 @@
 import { ethers, fhevm, deployments } from "hardhat";
 import { FhevmType } from "@fhevm/hardhat-plugin";
 
-/** Decrypts the caller's own pool balance on a live network, as a user would. */
+/**
+ * Decrypts the caller's own pool balance on a live network, as a user would.
+ *
+ * Useful as a check that a balance really is readable by its owner and by nobody else — run it
+ * with a different key and the decryption is refused.
+ */
 async function main() {
   await fhevm.initializeCLIApi();
   const [signer] = await ethers.getSigners();
