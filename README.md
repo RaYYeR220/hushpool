@@ -8,6 +8,10 @@ Balances, deposits and winnings are encrypted end to end on the Zama Protocol. S
 **the winner is never revealed to anyone.** Not to other depositors, not to an operator, not to the
 contract. You find out you won by decrypting your own balance and seeing that it grew.
 
+A two-minute walkthrough of the live deployment — a deposit, a balance opened by its owner alone, a
+draw settled over thirteen participants, and the exit queue:
+**[youtu.be/wZkMEL6SIFg](https://youtu.be/wZkMEL6SIFg)**.
+
 ## Why the winner staying secret is the hard part
 
 Encrypting balances is the easy half. A prize pool leaks its winner in two places that have nothing
@@ -37,6 +41,7 @@ What that does not fix is written down rather than glossed over. See
 | | |
 |---|---|
 | App | [hushpool.vercel.app](https://hushpool.vercel.app) |
+| Walkthrough | [youtu.be/wZkMEL6SIFg](https://youtu.be/wZkMEL6SIFg) |
 | HushPool | [`0x498240e24e8d2b4a60A87674437a7deDD7bC01aA`](https://sepolia.etherscan.io/address/0x498240e24e8d2b4a60A87674437a7deDD7bC01aA) |
 | ExitQueue | [`0xE10DCF11be2065da8D1AeB4aafB3A29deEEEc6dd`](https://sepolia.etherscan.io/address/0xE10DCF11be2065da8D1AeB4aafB3A29deEEEc6dd) |
 | Asset — Confidential USDT | [`0x4E7B06D78965594eB5EF5414c357ca21E1554491`](https://sepolia.etherscan.io/address/0x4E7B06D78965594eB5EF5414c357ca21E1554491) |
