@@ -20,3 +20,6 @@ ui-prototypes/
 frontend/.next/
 frontend/out/
 frontend/node_modules/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
